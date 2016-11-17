@@ -241,8 +241,6 @@ public class ServerMain extends Thread {
                                 out.writeUTF(c.name);
                                 out.writeInt(c.box.x);
                                 out.writeInt(c.box.y);
-                                out.writeInt(c.box.width);
-                                out.writeInt(c.box.height);
                             } else if (o instanceof Influence) {
                                 Influence sc = (Influence) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_SCORE);
