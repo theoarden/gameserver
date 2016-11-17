@@ -154,7 +154,7 @@ public class ServerMain extends Thread {
         private final String name;
         private final int side;
         private final HashMap<Object, Boolean> changes = new HashMap<>();
-        // 2nd parameter: change if true, removal if false
+        // 2nd parameter: change if true, removes if false
         private long lastThrow = 0;
 
         public Propagandist(Socket s) throws Exception {
