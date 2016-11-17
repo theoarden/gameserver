@@ -2,12 +2,12 @@ package simulation;
 
 import physics.*;
 
-public class Ball {
+public class Propaganda {
     private static int counter = 0;
     private Ray r;
     public final int id;
     
-    public Ball(int startX,int startY,int dX,int dY)
+    public Propaganda(int startX, int startY, int dX, int dY)
     {
         Vector v = new Vector(dX,dY);
         double speed = v.length();
