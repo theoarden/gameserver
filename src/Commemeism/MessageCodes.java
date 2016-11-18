@@ -7,4 +7,5 @@ public interface MessageCodes {
     int SERVER_CHANGED_BALL = 1;
     int SERVER_CHANGED_CLIENT = 2;
     int SERVER_CHANGED_SCORE = 3;
+    int SERVER_CHANGED_BOX = 4;
 }

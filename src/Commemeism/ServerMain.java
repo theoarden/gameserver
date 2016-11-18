@@ -47,10 +47,31 @@ public class ServerMain extends Thread {
         walls.add(new Box(width - 240, 320, 240, 10));
         walls.add(new Box(width - 320, 0, 10, 240));
         for (int i = 0; i < 5; i++) {
-            int x = ThreadLocalRandom.current().nextInt(0, width - 75);
-            int y = ThreadLocalRandom.current().nextInt(0, height - 75);
-            proletariats.add(new Box(x, y, 75, 75));
+            Box b = new Box(-100, -100, 75, 75);
+            int nx, ny;
+            do{
+                nx = ThreadLocalRandom.current().nextInt(0, width - 75);
+                ny = ThreadLocalRandom.current().nextInt(0, height - 75);
+            }while(isOccupied(nx, ny, nx+75, ny+75, b, walls, proletariats) != null);
+            b.x = nx;
+            b.y = ny;
+            proletariats.add(b);
         }
+        new Thread(() -> {
+            try{while(true){
+                for(Box b : proletariats) {
+                    int nx, ny;
+                    do{
+                        nx = Math.min(width-75, Math.max(0,ThreadLocalRandom.current().nextInt(b.x-30, b.x+30)));
+                        ny = Math.min(height-75, Math.max(0, ThreadLocalRandom.current().nextInt(b.y-30, b.y+30)));
+                    }while(isOccupied(nx, ny, nx+75, ny+75, b, walls, proletariats) != null);
+                    b.x = nx;
+                    b.y = ny;
+                    announceChange(b);
+                }
+                Thread.sleep(30);
+            }}catch(Exception e){}
+        }).start();
         server = new ServerSocket(8000);
         new Thread(() -> {
             try {
@@ -97,8 +118,8 @@ public class ServerMain extends Thread {
                             Box voter = isOccupied(x, y, x, y, null, proletariats);
                             if (voter != null) {
                                 System.out.println("Influence from " + propagandaThrower.get(b).side);
-                                influences[propagandaThrower.get(b).side].score += 10;
-                                influences[1 - propagandaThrower.get(b).side].score -= 10;
+                                influences[propagandaThrower.get(b).side].setScore(10);
+                                influences[1 - propagandaThrower.get(b).side].setScore(-10);
                                 i.remove();
                                 announceRemove(b);
                                 announceChange(influences[0]);
@@ -180,8 +201,8 @@ public class ServerMain extends Thread {
         public void initialize() throws IOException {
             out.writeInt(width);
             out.writeInt(height);
-            out.writeInt(influences[0].score);
-            out.writeInt(influences[1].score);
+            out.writeInt(influences[0].getScore());
+            out.writeInt(influences[1].getScore());
 
             out.writeInt(box.x);
             out.writeInt(box.y);
@@ -198,6 +219,7 @@ public class ServerMain extends Thread {
 
             out.writeInt(proletariats.size());
             for (Box w : proletariats) {
+                out.writeInt(w.id);
                 out.writeInt(w.x);
                 out.writeInt(w.y);
                 out.writeInt(w.width);
@@ -248,7 +270,13 @@ public class ServerMain extends Thread {
                                 Influence sc = (Influence) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_SCORE);
                                 out.writeInt(sc.party);
-                                out.writeInt(sc.score);
+                                out.writeInt(sc.getScore());
+                            } else if (o instanceof Box){
+                                Box b = (Box) o;
+                                out.writeInt(MessageCodes.SERVER_CHANGED_BOX);
+                                out.writeInt(b.id);
+                                out.writeInt(b.x);
+                                out.writeInt(b.y);
                             }
                         }
                         out.flush();
@@ -365,11 +393,19 @@ public class ServerMain extends Thread {
 
     private class Influence {
         public final int party;
-        public int score;
+        private int score;
 
         public Influence(int party) {
             this.party = party;
-            this.score = 150;
+            this.score = 750;
+        }
+
+        public void setScore(int s) {
+            score = Math.max(0, Math.min(1500, s + score));
+        }
+
+        public int getScore() {
+            return score;
         }
     }
 }
