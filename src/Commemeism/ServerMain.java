@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.WeakHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import simulation.Propaganda;
 import simulation.Box;
@@ -39,9 +40,17 @@ public class ServerMain extends Thread {
     }
 
     private ServerMain() throws Exception {
-        width = 800;
-        height = 600;
-        walls.add(new Box(0, 0, width, height));
+        width = 1400;
+        height = 750;
+        walls.add(new Box(0, height - 320, 240, 10));
+        walls.add(new Box(320, height - 240, 10, 240));
+        walls.add(new Box(width - 240, 320, 240, 10));
+        walls.add(new Box(width - 320, 0, 10, 240));
+        for (int i = 0; i < 5; i++) {
+            int x = ThreadLocalRandom.current().nextInt(0, width - 75);
+            int y = ThreadLocalRandom.current().nextInt(0, height - 75);
+            proletariats.add(new Box(x, y, 75, 75));
+        }
         server = new ServerSocket(8000);
         new Thread(() -> {
             try {
@@ -70,6 +79,7 @@ public class ServerMain extends Thread {
 
     @Override
     public void run() {
+        int ps = 30;
         try {
             while (true) {
                 synchronized (propagandas) {
@@ -78,37 +88,33 @@ public class ServerMain extends Thread {
                         b.move(1);
                         int x = (int) b.getRay().origin.x;
                         int y = (int) b.getRay().origin.y;
-                        if (x < 0 || y < 0 || x > width || y > height ||
-                                isOccupied(x, y, x, y, null, walls) != null) {
+                        if (x < -ps || y < -ps || x > width || y > height ||
+                                isOccupied(x, y, x + ps, y + ps, null, walls) != null) {
                             i.remove();
                             announceRemove(b);
+                            System.out.println("projectile gone " + b.id);
                         } else {
                             Box voter = isOccupied(x, y, x, y, null, proletariats);
                             if (voter != null) {
                                 System.out.println("Influence from " + propagandaThrower.get(b).side);
-                                influences[propagandaThrower.get(b).side].score++;
-                                influences[1 - propagandaThrower.get(b).side].score--;
+                                influences[propagandaThrower.get(b).side].score += 10;
+                                influences[1 - propagandaThrower.get(b).side].score -= 10;
                                 i.remove();
                                 announceRemove(b);
                                 announceChange(influences[0]);
                                 announceChange(influences[1]);
+                                System.out.println("projectile hit " + b.id);
+                            } else {
+                                System.out.println("projectile moved " + b.id);
+                                announceChange(b);
                             }
                         }
                     }
                 }
-                Thread.sleep(20);
+                Thread.sleep(30);
             }
         } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-
-    private void announceMove(Propagandist who) {
-        synchronized (clients) {
-            for (Propagandist c : clients.keySet()) {
-                if (c != who)
-                    c.changed(who, true);
-            }
         }
     }
 
@@ -144,6 +150,7 @@ public class ServerMain extends Thread {
             propagandas.add(propaganda);
             propagandaThrower.put(propaganda, from);
         }
+        announceChange(propaganda);
     }
 
     private class Propagandist extends Thread {
@@ -208,8 +215,6 @@ public class ServerMain extends Thread {
                 out.writeUTF(c.name);
                 out.writeInt(c.box.x);
                 out.writeInt(c.box.y);
-                out.writeInt(c.box.width);
-                out.writeInt(c.box.height);
             }
 
             out.flush();
@@ -231,8 +236,6 @@ public class ServerMain extends Thread {
                                 out.writeInt(b.id);
                                 out.writeInt((int) b.getRay().origin.x);
                                 out.writeInt((int) b.getRay().origin.y);
-                                out.writeInt((int) (b.getRay().v.dX * b.getRay().speed));
-                                out.writeInt((int) (b.getRay().v.dY * b.getRay().speed));
                             } else if (o instanceof Propagandist) {
                                 Propagandist c = (Propagandist) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_CLIENT);
@@ -264,12 +267,13 @@ public class ServerMain extends Thread {
         public void changed(Object another, boolean isedited) {
             synchronized (changes) {
                 changes.put(another, isedited);
+                changes.notify();
             }
         }
 
         private void move(int direction) {
             int dx = 0, dy = 0;
-            int distance = 5;
+            int distance = 12;
             switch (direction) {
                 case 0:
                     dy = 1;
@@ -291,18 +295,24 @@ public class ServerMain extends Thread {
             while (distance > 0 && null != isOccupied(
                     box.x + dx * distance, box.y + dy * distance, box.x + dx * distance + box.width, box.y + dy * distance + box.height,
                     this.box, walls, clients.values())) distance--;
-            if (distance == 0) return;
+            if (distance == 0) {
+                // System.out.println("["+name+"] " + "dist=0");
+                return;
+            } else {
+                // System.out.println("["+name+"] " + "dist=" + distance + " dir=" + direction + " dx=" + dx + " dy=" + dy);
+            }
             box.move(dx * distance, dy * distance);
-            announceMove(this);
+            announceChange(this);
         }
 
         private void throwPropaganda(int direction) {
-            if (lastThrow + 200 < System.currentTimeMillis())
+            if (lastThrow + 200 > System.currentTimeMillis())
                 return;
             lastThrow = System.currentTimeMillis();
+            System.out.println("[" + name + "] " + "throw dir=" + direction);
             int dx = 0, dy = 0;
             int x = box.x, y = box.y;
-            int distance = 3;
+            int distance = 17;
             switch (direction) {
                 case 0:
                     dy = 1;
@@ -359,6 +369,7 @@ public class ServerMain extends Thread {
 
         public Influence(int party) {
             this.party = party;
+            this.score = 150;
         }
     }
 }
