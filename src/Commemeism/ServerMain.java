@@ -5,11 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.WeakHashMap;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import simulation.Propaganda;
@@ -18,7 +14,6 @@ import simulation.Box;
 public class ServerMain extends Thread {
 
     private final int width, height;
-    private Box getPropaganda;
     private final ArrayList<Box> walls = new ArrayList<>();
     private final ArrayList<Box> proletariats = new ArrayList<>();
     private final HashMap<Propagandist, Box> clients = new HashMap<>();
@@ -27,6 +22,7 @@ public class ServerMain extends Thread {
     private final Influence[] influences = new Influence[]{
             new Influence(0), new Influence(1)
     };
+    private final Box[] bases = new Box[2];
     private final ServerSocket server;
 
     public static void main(String[] args) throws Exception {
@@ -43,40 +39,44 @@ public class ServerMain extends Thread {
     private ServerMain() throws Exception {
         width = 1400;
         height = 750;
-        getPropaganda = new Box(width/2 - 120, height/2- 150, 270, 300);
+        bases[0] = new Box(0, height - 320, 320, 320);
+        bases[1] = new Box(width - 320, 0, 320, 320);
         walls.add(new Box(0, height - 320, 240, 10));
         walls.add(new Box(320, height - 240, 10, 240));
         walls.add(new Box(width - 240, 320, 240, 10));
         walls.add(new Box(width - 320, 0, 10, 240));
-        walls.add(new Box(width/2 - 150, height/2 -150, 300, 10));
-        walls.add(new Box(width/2 - 150, height/2 -150, 10, 220));
-        walls.add(new Box(width/2 + 150, height/2 - 150,10, 300 ));
-        walls.add(new Box(width/2 - 150, height/2 + 150,300, 10 ));
-        for (int i = 0; i < 5; i++) {
+        walls.add(new Box(width / 2 - 150, height / 2 - 150, 300, 10));
+        walls.add(new Box(width / 2 - 150, height / 2 - 150, 10, 215));
+        walls.add(new Box(width / 2 + 150, height / 2 - 150, 10, 300));
+        walls.add(new Box(width / 2 - 150, height / 2 + 150, 300, 10));
+        for (int i = 0; i < 10; i++) {
             Box b = new Box(-100, -100, 75, 75);
             int nx, ny;
-            do{
+            do {
                 nx = ThreadLocalRandom.current().nextInt(0, width - 75);
                 ny = ThreadLocalRandom.current().nextInt(0, height - 75);
-            }while(isOccupied(nx, ny, nx+75, ny+75, b, walls, proletariats) != null);
+            } while (isOccupied(nx, ny, nx + 75, ny + 75, b, walls, proletariats) != null);
             b.x = nx;
             b.y = ny;
             proletariats.add(b);
         }
         new Thread(() -> {
-            try{while(true){
-                for(Box b : proletariats) {
-                    int nx, ny;
-                    do{
-                        nx = Math.min(width-75, Math.max(0,ThreadLocalRandom.current().nextInt(b.x-30, b.x+30)));
-                        ny = Math.min(height-75, Math.max(0, ThreadLocalRandom.current().nextInt(b.y-30, b.y+30)));
-                    }while(isOccupied(nx, ny, nx+75, ny+75, b, walls, proletariats) != null);
-                    b.x = nx;
-                    b.y = ny;
-                    announceChange(b);
+            try {
+                while (true) {
+                    for (Box b : proletariats) {
+                        int nx, ny;
+                        do {
+                            nx = Math.min(width - 75, Math.max(0, ThreadLocalRandom.current().nextInt(b.x - 30, b.x + 30)));
+                            ny = Math.min(height - 75, Math.max(0, ThreadLocalRandom.current().nextInt(b.y - 30, b.y + 30)));
+                        } while (isOccupied(nx, ny, nx + 75, ny + 75, b, walls, proletariats) != null);
+                        b.x = nx;
+                        b.y = ny;
+                        announceChange(b);
+                    }
+                    Thread.sleep(30);
                 }
-                Thread.sleep(30);
-            }}catch(Exception e){}
+            } catch (Exception e) {
+            }
         }).start();
         server = new ServerSocket(8000);
         new Thread(() -> {
@@ -88,7 +88,7 @@ public class ServerMain extends Thread {
                         try {
                             Propagandist p = new Propagandist(s);
                             synchronized (clients) {
-                                clients.put(p, p.box);
+                                clients.put(p, p.cubistRepresentation);
                             }
                             p.initialize();
                             p.start();
@@ -121,19 +121,74 @@ public class ServerMain extends Thread {
                             announceRemove(b);
                             System.out.println("projectile gone " + b.id);
                         } else {
-                            Box voter = isOccupied(x, y, x, y, null, proletariats);
-                            if (voter != null) {
-                                System.out.println("Influence from " + propagandaThrower.get(b).side);
-                                influences[propagandaThrower.get(b).side].setScore(10);
-                                influences[1 - propagandaThrower.get(b).side].setScore(-10);
-                                i.remove();
-                                announceRemove(b);
-                                announceChange(influences[0]);
-                                announceChange(influences[1]);
-                                System.out.println("projectile hit " + b.id);
-                            } else {
-                                System.out.println("projectile moved " + b.id);
-                                announceChange(b);
+                            Box cli = isOccupied(x, y, x + ps, y + ps, null, clients.values());
+                            if(cli != null){
+                                Propagandist from = propagandaThrower.get(b);
+                                Propagandist to = null;
+                                for(Propagandist c : clients.keySet())
+                                    if(clients.get(c) == cli)
+                                        to = c;
+                                if(to != null && to.side != from.side){
+                                    i.remove();
+                                    announceRemove(b);
+                                    influences[from.side].setScore(+20);
+                                    influences[to.side].setScore(-20);
+                                    int nx, ny;
+                                    do {
+                                        nx = ThreadLocalRandom.current().nextInt(0, width - 75);
+                                        ny = ThreadLocalRandom.current().nextInt(0, height - 75);
+                                    } while (isOccupied(nx, ny, nx + 75, ny + 75,
+                                            to.cubistRepresentation, walls, proletariats, clients.values(), excludebox(0)) != null);
+                                    to.cubistRepresentation.x = nx;
+                                    to.cubistRepresentation.y = ny;
+                                    to.side = 0;
+                                    announceChange(to, influences[0], influences[1]);
+                                    synchronized (clients){
+                                        boolean allCommie = true;
+                                        for(Propagandist c : clients.keySet())
+                                            allCommie &= c.side == 0;
+                                        if(allCommie){
+                                            ArrayList<Propagandist> c = new ArrayList<>(clients.keySet());
+                                            Collections.shuffle(c);
+                                            for(int ii =1; ii < c.size(); ii++){
+                                                Propagandist cc = c.get(ii);
+                                                cc.side = 1;
+                                                cc.propagandaCount = 30;
+                                                if(isOccupied(cc.cubistRepresentation.x, cc.cubistRepresentation.y,
+                                                        cc.cubistRepresentation.x + 75, cc.cubistRepresentation.y + 75, cc.cubistRepresentation,
+                                                        walls, proletariats, clients.values(), excludebox(1)) != null)
+                                                    cc.relocate();
+                                                announceChange(c.get(ii));
+                                            }
+                                            c.get(0).propagandaCount = 0;
+                                            announceChange(c.get(0));
+                                        }
+                                    }
+                                }else{
+                                    System.out.println("projectile moved " + b.id);
+                                    announceChange(b);
+                                }
+                            }else {
+                                Box voter = isOccupied(x, y, x + ps, y + ps, null, proletariats);
+                                if (voter != null) {
+                                    System.out.println("Influence from " + propagandaThrower.get(b).side);
+                                    influences[propagandaThrower.get(b).side].setScore(10);
+                                    influences[1 - propagandaThrower.get(b).side].setScore(-10);
+                                    i.remove();
+                                    System.out.println("projectile hit " + b.id);
+                                    int nx, ny;
+                                    do {
+                                        nx = ThreadLocalRandom.current().nextInt(0, width - 75);
+                                        ny = ThreadLocalRandom.current().nextInt(0, height - 75);
+                                    } while (isOccupied(nx, ny, nx + 75, ny + 75, voter, walls, proletariats) != null);
+                                    voter.x = nx;
+                                    voter.y = ny;
+                                    announceRemove(b);
+                                    announceChange(influences[0], influences[1], voter);
+                                } else {
+                                    System.out.println("projectile moved " + b.id);
+                                    announceChange(b);
+                                }
                             }
                         }
                     }
@@ -145,7 +200,7 @@ public class ServerMain extends Thread {
         }
     }
 
-    private void announceRemove(Object o) {
+    private void announceRemove(Object... o) {
         synchronized (clients) {
             for (Propagandist c : clients.keySet()) {
                 c.changed(o, false);
@@ -153,7 +208,7 @@ public class ServerMain extends Thread {
         }
     }
 
-    private void announceChange(Object o) {
+    private void announceChange(Object... o) {
         synchronized (clients) {
             for (Propagandist c : clients.keySet()) {
                 c.changed(o, true);
@@ -174,19 +229,32 @@ public class ServerMain extends Thread {
 
     private void addPropaganda(Propagandist from, Propaganda propaganda) {
         synchronized (propagandas) {
+            if(from.propagandaCount <= 0)
+                return;
+            System.out.println();
             propagandas.add(propaganda);
+            from.propagandaCount--;
+            announceChange(from);
             propagandaThrower.put(propaganda, from);
         }
         announceChange(propaganda);
     }
 
+    public List<Box> excludebox(int side){
+        List<Box> b = new ArrayList<>();
+        b.add(bases[1 - side]);
+        return b;
+    }
+
     private class Propagandist extends Thread {
-        public final Box box;
+        public final Box cubistRepresentation;
         private final Socket socket;
         private final DataInputStream in;
         private final DataOutputStream out;
         private final String name;
-        private final int side;
+        private int side;
+        public int propagandaCount = 0;
+        public boolean enteredFactory = false;
         private final HashMap<Object, Boolean> changes = new HashMap<>();
         // 2nd parameter: change if true, removes if false
         private long lastThrow = 0;
@@ -197,11 +265,29 @@ public class ServerMain extends Thread {
             in = new DataInputStream(s.getInputStream());
             name = in.readUTF();
             side = in.readInt();
+
+            cubistRepresentation = new Box(0, 0, 75, 75);
+
+            relocate();
+        }
+
+        public void relocate(){
+            int x1, x2, y1, y2;
             if (side == 0) {
-                box = new Box(100, height - 100, 75, 75);
+                x1 = 0; x2 = 300;
+                y1 = height - 300; y2 = height - 75;
             } else {
-                box = new Box(width - 100, 100, 75, 75);
+                x1 = width - 300; x2 = width - 75;
+                y1 = 0; y2 = 300;
             }
+
+            int nx, ny;
+            do {
+                nx = ThreadLocalRandom.current().nextInt(x1, x2);
+                ny = ThreadLocalRandom.current().nextInt(y1, y2);
+            } while (isOccupied(nx, ny, nx + 75, ny + 75, cubistRepresentation, walls, proletariats, clients.values(), excludebox(side)) != null);
+            cubistRepresentation.x = nx;
+            cubistRepresentation.y = ny;
         }
 
         public void initialize() throws IOException {
@@ -210,10 +296,10 @@ public class ServerMain extends Thread {
             out.writeInt(influences[0].getScore());
             out.writeInt(influences[1].getScore());
 
-            out.writeInt(box.x);
-            out.writeInt(box.y);
-            out.writeInt(box.width);
-            out.writeInt(box.height);
+            out.writeInt(cubistRepresentation.x);
+            out.writeInt(cubistRepresentation.y);
+            out.writeInt(cubistRepresentation.width);
+            out.writeInt(cubistRepresentation.height);
 
             out.writeInt(walls.size());
             for (Box w : walls) {
@@ -238,11 +324,13 @@ public class ServerMain extends Thread {
             }
             out.writeInt(arr.size());
             for (Propagandist c : arr) {
-                out.writeInt(c.box.id);
+                out.writeInt(c.cubistRepresentation.id);
                 out.writeInt(c.side);
                 out.writeUTF(c.name);
-                out.writeInt(c.box.x);
-                out.writeInt(c.box.y);
+                out.writeInt(c.cubistRepresentation.x);
+                out.writeInt(c.cubistRepresentation.y);
+                out.writeInt(c.propagandaCount);
+                out.writeBoolean(c.enteredFactory);
             }
 
             out.flush();
@@ -250,14 +338,14 @@ public class ServerMain extends Thread {
             new Thread(() -> {
                 try {
                     while (true) {
-                        HashMap<Object, Boolean> chg = new HashMap<>();
-                        synchronized (changes) {
-                            changes.wait();
-                            chg.putAll(changes);
-                            changes.clear();
+                        HashMap<Object, Boolean> changes = new HashMap<>();
+                        synchronized (this.changes) {
+                            this.changes.wait();
+                            changes.putAll(this.changes);
+                            this.changes.clear();
                         }
-                        for (Object o : chg.keySet()) {
-                            out.writeBoolean(chg.get(o));
+                        for (Object o : changes.keySet()) {
+                            out.writeBoolean(changes.get(o));
                             if (o instanceof Propaganda) {
                                 Propaganda b = (Propaganda) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_BALL);
@@ -267,17 +355,19 @@ public class ServerMain extends Thread {
                             } else if (o instanceof Propagandist) {
                                 Propagandist c = (Propagandist) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_CLIENT);
-                                out.writeInt(c.box.id);
+                                out.writeInt(c.cubistRepresentation.id);
                                 out.writeInt(c.side);
                                 out.writeUTF(c.name);
-                                out.writeInt(c.box.x);
-                                out.writeInt(c.box.y);
+                                out.writeInt(c.cubistRepresentation.x);
+                                out.writeInt(c.cubistRepresentation.y);
+                                out.writeInt(c.propagandaCount);
+                                out.writeBoolean(c.enteredFactory);
                             } else if (o instanceof Influence) {
                                 Influence sc = (Influence) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_SCORE);
                                 out.writeInt(sc.party);
                                 out.writeInt(sc.getScore());
-                            } else if (o instanceof Box){
+                            } else if (o instanceof Box) {
                                 Box b = (Box) o;
                                 out.writeInt(MessageCodes.SERVER_CHANGED_BOX);
                                 out.writeInt(b.id);
@@ -286,7 +376,7 @@ public class ServerMain extends Thread {
                             }
                         }
                         out.flush();
-                        chg.clear();
+                        changes.clear();
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -298,9 +388,10 @@ public class ServerMain extends Thread {
             }).start();
         }
 
-        public void changed(Object another, boolean isedited) {
+        public void changed(Object another[], boolean isedited) {
             synchronized (changes) {
-                changes.put(another, isedited);
+                for(Object o : another)
+                    changes.put(o, isedited);
                 changes.notify();
             }
         }
@@ -322,49 +413,53 @@ public class ServerMain extends Thread {
                     dx = -1;
                     break;
             }
-            while (distance > 0 && box.x + dx * distance < 0) distance--;
-            while (distance > 0 && box.y + dy * distance < 0) distance--;
-            while (distance > 0 && box.x + box.width + dx * distance > width) distance--;
-            while (distance > 0 && box.y + box.height + dy * distance > height) distance--;
+            while (distance > 0 && cubistRepresentation.x + dx * distance < 0) distance--;
+            while (distance > 0 && cubistRepresentation.y + dy * distance < 0) distance--;
+            while (distance > 0 && cubistRepresentation.x + cubistRepresentation.width + dx * distance > width) distance--;
+            while (distance > 0 && cubistRepresentation.y + cubistRepresentation.height + dy * distance > height) distance--;
             while (distance > 0 && null != isOccupied(
-                    box.x + dx * distance, box.y + dy * distance, box.x + dx * distance + box.width, box.y + dy * distance + box.height,
-                    this.box, walls, clients.values())) distance--;
+                    cubistRepresentation.x + dx * distance, cubistRepresentation.y + dy * distance, cubistRepresentation.x + dx * distance + cubistRepresentation.width, cubistRepresentation.y + dy * distance + cubistRepresentation.height,
+                    this.cubistRepresentation, walls, clients.values(), excludebox(side))) distance--;
             if (distance == 0) {
                 // System.out.println("["+name+"] " + "dist=0");
                 return;
             } else {
                 // System.out.println("["+name+"] " + "dist=" + distance + " dir=" + direction + " dx=" + dx + " dy=" + dy);
             }
-            box.move(dx * distance, dy * distance);
+            cubistRepresentation.move(dx * distance, dy * distance);
+            boolean prev = enteredFactory;
+            enteredFactory = ((cubistRepresentation.x>(1400/2.0-120)&& cubistRepresentation.x< (1400/2.0-120)+270&& cubistRepresentation.y>(750/2.0-150)&& cubistRepresentation.y< (750/2.0-150)+300));
+            if(!prev && enteredFactory)
+                propagandaCount+=5;
             announceChange(this);
         }
 
         private void throwPropaganda(int direction) {
-            if (lastThrow + 200 > System.currentTimeMillis())
+            if (lastThrow + 70 > System.currentTimeMillis())
                 return;
             lastThrow = System.currentTimeMillis();
             System.out.println("[" + name + "] " + "throw dir=" + direction);
             int dx = 0, dy = 0;
-            int x = box.x, y = box.y;
+            int x = cubistRepresentation.x, y = cubistRepresentation.y;
             int distance = 17;
             switch (direction) {
                 case 0:
                     dy = 1;
-                    x += box.width / 2;
-                    y += box.height;
+                    x += cubistRepresentation.width / 2;
+                    y += cubistRepresentation.height;
                     break;
                 case 1:
                     dx = 1;
-                    x += box.width;
-                    y += box.height / 2;
+                    x += cubistRepresentation.width;
+                    y += cubistRepresentation.height / 2;
                     break;
                 case 2:
                     dy = -1;
-                    x += box.width / 2;
+                    x += cubistRepresentation.width / 2;
                     break;
                 case 3:
                     dx = -1;
-                    y += box.height / 2;
+                    y += cubistRepresentation.height / 2;
                     break;
             }
             addPropaganda(this, new Propaganda(x, y, dx * distance, dy * distance));

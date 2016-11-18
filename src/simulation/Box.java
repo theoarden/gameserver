@@ -13,7 +13,7 @@ public class Box {
     public int height;
     public final int id;
 
-    // Set outward to true if you want a box with outward pointed normals
+    // Set outward to true if you want a cubistRepresentation with outward pointed normals
     public Box(int x, int y, int width, int height) {
         this.x = x;
         this.y = y;
@@ -33,6 +33,7 @@ public class Box {
         x += deltaX;
         y += deltaY;
     }
+
 
     public boolean contains(Point p) {
         return p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
