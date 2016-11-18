@@ -18,6 +18,7 @@ import simulation.Box;
 public class ServerMain extends Thread {
 
     private final int width, height;
+    private Box getPropaganda;
     private final ArrayList<Box> walls = new ArrayList<>();
     private final ArrayList<Box> proletariats = new ArrayList<>();
     private final HashMap<Propagandist, Box> clients = new HashMap<>();
@@ -42,10 +43,15 @@ public class ServerMain extends Thread {
     private ServerMain() throws Exception {
         width = 1400;
         height = 750;
+        getPropaganda = new Box(width/2 - 120, height/2- 150, 270, 300);
         walls.add(new Box(0, height - 320, 240, 10));
         walls.add(new Box(320, height - 240, 10, 240));
         walls.add(new Box(width - 240, 320, 240, 10));
         walls.add(new Box(width - 320, 0, 10, 240));
+        walls.add(new Box(width/2 - 150, height/2 -150, 300, 10));
+        walls.add(new Box(width/2 - 150, height/2 -150, 10, 220));
+        walls.add(new Box(width/2 + 150, height/2 - 150,10, 300 ));
+        walls.add(new Box(width/2 - 150, height/2 + 150,300, 10 ));
         for (int i = 0; i < 5; i++) {
             Box b = new Box(-100, -100, 75, 75);
             int nx, ny;
