@@ -2,12 +2,12 @@ package simulation;
 
 import physics.*;
 
-public class Propaganda {
+public class Inspiration {
     private static int counter = 0;
     private Ray r;
     public final int id;
 
-    public Propaganda(int startX, int startY, int dX, int dY) {
+    public Inspiration(int startX, int startY, int dX, int dY) {
         Vector v = new Vector(dX, dY);
         double speed = v.length();
         r = new Ray(new Point(startX, startY), v, speed);

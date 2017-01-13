@@ -13,7 +13,6 @@ public class Box {
     public int height;
     public final int id;
 
-    // Set outward to true if you want a cubistRepresentation with outward pointed normals
     public Box(int x, int y, int width, int height) {
         this.x = x;
         this.y = y;

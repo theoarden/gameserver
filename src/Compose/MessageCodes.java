@@ -1,4 +1,4 @@
-package Commemeism;
+package Compose;
 
 public interface MessageCodes {
     int CLIENT_MOVE = 1;

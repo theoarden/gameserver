@@ -23,12 +23,7 @@ public class Vector {
     {
         return Math.sqrt(dotProduct(this,this));
     }
-    
-    static public double crossProduct(Vector one,Vector two)
-    {
-        return one.dX*two.dY-two.dX*one.dY;
-    }
-    
+
     static public double dotProduct(Vector one,Vector two)
     {
         return one.dX*two.dX + one.dY*two.dY;
